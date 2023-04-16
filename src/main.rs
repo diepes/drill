@@ -55,7 +55,7 @@ fn main() {
   let list_reports = benchmark_result.reports;
   let duration = benchmark_result.duration;
 
-  show_stats(&list_reports, stats_option, nanosec, duration);
+  show_stats(&list_reports, stats_option, nanosec, duration, timeout);
   compare_benchmark(&list_reports, compare_path_option, threshold_option);
 
   process::exit(0)
@@ -105,8 +105,9 @@ impl DrillStats {
   }
 }
 
-fn compute_stats(sub_reports: &[Report]) -> DrillStats {
-  let mut hist = Histogram::<u64>::new_with_bounds(1, 60 * 60 * 1000, 2).unwrap();
+fn compute_stats(sub_reports: &[Report], timeout: u64) -> DrillStats {
+  let hist_high_u_s: u64 = timeout * 1000 * 1000;
+  let mut hist = Histogram::<u64>::new_with_bounds(1, hist_high_u_s, 2).unwrap();
   let mut group_by_status = HashMap::new();
 
   for req in sub_reports {
@@ -137,7 +138,7 @@ fn format_time(tdiff: f64, nanosec: bool) -> String {
   }
 }
 
-fn show_stats(list_reports: &[Vec<Report>], stats_option: bool, nanosec: bool, duration: f64) {
+fn show_stats(list_reports: &[Vec<Report>], stats_option: bool, nanosec: bool, duration: f64, timeout: u64) {
   if !stats_option {
     return;
   }
@@ -150,7 +151,7 @@ fn show_stats(list_reports: &[Vec<Report>], stats_option: bool, nanosec: bool, d
 
   // compute stats per name
   for (name, reports) in group_by_name {
-    let substats = compute_stats(&reports);
+    let substats = compute_stats(&reports, timeout);
     println!();
     println!("{:width$} {:width2$} {}", name.green(), "Total requests".yellow(), substats.total_requests.to_string().purple(), width = 25, width2 = 25);
     println!("{:width$} {:width2$} {}", name.green(), "Successful requests".yellow(), substats.successful_requests.to_string().purple(), width = 25, width2 = 25);
@@ -165,7 +166,7 @@ fn show_stats(list_reports: &[Vec<Report>], stats_option: bool, nanosec: bool, d
 
   // compute global stats
   let allreports = list_reports.concat();
-  let global_stats = compute_stats(&allreports);
+  let global_stats = compute_stats(&allreports, timeout);
   let requests_per_second = global_stats.total_requests as f64 / duration;
 
   println!();
