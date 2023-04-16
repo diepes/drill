@@ -28,7 +28,8 @@ fn main() {
   let relaxed_interpolations = matches.is_present("relaxed-interpolations");
   let quiet = matches.is_present("quiet");
   let nanosec = matches.is_present("nanosec");
-  let timeout = matches.value_of("timeout");
+  let timeout_opt = matches.value_of("timeout");
+  let timeout: u64 = timeout_opt.map_or(10, |t| t.parse().unwrap_or(10));
   let verbose = matches.is_present("verbose");
   let tags_option = matches.value_of("tags");
   let skip_tags_option = matches.value_of("skip-tags");
