@@ -28,10 +28,13 @@ pub fn expand(parent_path: &str, item: &Yaml, benchmark: &mut Benchmark, tags: &
 }
 
 pub fn expand_from_filepath(parent_path: &str, benchmark: &mut Benchmark, accessor: Option<&str>, tags: &Tags) {
+  const FN_LOG: &str = "expand_from_filepath";
+  log::info!("{} Start path={}",FN_LOG, parent_path);
   let docs = reader::read_file_as_yml(parent_path);
   let items = reader::read_yaml_doc_accessor(&docs[0], accessor);
 
   for item in items {
+    log::info!("{} items item={:?}",FN_LOG, item);
     if include::is_that_you(item) {
       include::expand(parent_path, item, benchmark, tags);
 

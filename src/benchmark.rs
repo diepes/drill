@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use futures::stream::{self, StreamExt};
 
 use serde_json::{json, Map, Value};
-use tokio::{runtime, time::sleep};
+use tokio;
 
 use crate::actions::{Report, Runnable};
 use crate::config::Config;
@@ -28,10 +28,13 @@ pub struct BenchmarkResult {
   pub duration: f64,
 }
 
-async fn run_iteration(benchmark: Arc<Benchmark>, pool: Pool, config: Arc<Config>, iteration: i64) -> Vec<Report> {
+async fn run_iteration(benchmark: Arc<Benchmark>, pool: Pool, config: Arc<Config>, iteration: i64, log_t: Instant) -> Vec<Report> {
+  const FN_LOG: &str = "benchmark::run_iteration";
+  log::info!("{} Starting iteration #{} {:.6}s", FN_LOG,iteration,log_t.elapsed().as_secs_f64());
   if config.rampup > 0 {
     let delay = config.rampup / config.iterations;
-    sleep(Duration::new((delay * iteration) as u64, 0)).await;
+    log::info!("{} iteration {} sleep for {}", FN_LOG,iteration, (delay * iteration));
+    tokio::time::sleep(Duration::new((delay * iteration) as u64, 0)).await;
   }
 
   let mut context: Context = Context::new();
@@ -40,7 +43,10 @@ async fn run_iteration(benchmark: Arc<Benchmark>, pool: Pool, config: Arc<Config
   context.insert("iteration".to_string(), json!(iteration.to_string()));
   context.insert("base".to_string(), json!(config.base.to_string()));
 
-  for item in benchmark.iter() {
+  for (i,item) in benchmark.iter().enumerate() {
+    log::debug!("{} iteration {} for benchmark.iter execute i={} {:.6}s", FN_LOG,iteration, i, log_t.elapsed().as_secs_f64());
+    // fake  await to
+    ////tokio::time::sleep(Duration::new( 0, 0)).await;
     item.execute(&mut context, &mut reports, &pool, &config).await;
   }
 
@@ -56,6 +62,9 @@ fn join<S: ToString>(l: Vec<S>, sep: &str) -> String {
 
 #[allow(clippy::too_many_arguments)]
 pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_interpolations: bool, no_check_certificate: bool, quiet: bool, nanosec: bool, timeout: u64, verbose: bool, tags: &Tags) -> BenchmarkResult {
+  const FN_LOG: &str = "benchmark::execute";
+  let log_t = Instant::now();
+  log::info!("{} Start {:.3}s",FN_LOG, log_t.elapsed().as_secs_f64());
   let config = Arc::new(Config::new(benchmark_path, relaxed_interpolations, no_check_certificate, quiet, nanosec, timeout, verbose));
 
   if report_path_option.is_some() {
@@ -70,13 +79,15 @@ pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_i
   println!();
 
   let threads = std::cmp::min(num_cpus::get(), config.concurrency as usize);
-  let rt = runtime::Builder::new_multi_thread().enable_all().worker_threads(threads).build().unwrap();
-
+  let rt = tokio::runtime::Builder::new_multi_thread().enable_all().worker_threads(threads).build().unwrap();
+  log::info!("{} tokio->rt {:.6}s",FN_LOG, log_t.elapsed().as_secs_f64());
   rt.block_on(async {
     let mut benchmark: Benchmark = Benchmark::new();
     let pool_store: PoolStore = PoolStore::new();
 
     include::expand_from_filepath(benchmark_path, &mut benchmark, Some("plan"), tags);
+    log::info!("{} fin expand_from_filepath {:.6}s",FN_LOG, log_t.elapsed().as_secs_f64());
+    // PES // log::info!("benchmark {:?}",benchmark);
 
     if benchmark.is_empty() {
       eprintln!("Empty benchmark. Exiting.");
@@ -87,7 +98,7 @@ pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_i
     let pool = Arc::new(Mutex::new(pool_store));
 
     if let Some(report_path) = report_path_option {
-      let reports = run_iteration(benchmark.clone(), pool.clone(), config, 0).await;
+      let reports = run_iteration(benchmark.clone(), pool.clone(), config, 0, log_t.clone()).await;
 
       writer::write_file(report_path, join(reports, ""));
 
@@ -96,8 +107,10 @@ pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_i
         duration: 0.0,
       }
     } else {
-      let children = (0..config.iterations).map(|iteration| run_iteration(benchmark.clone(), pool.clone(), config.clone(), iteration));
-
+      log::info!("{} children = map run_iteration {}", FN_LOG,config.iterations);
+      let children = (0..config.iterations).map(|iteration| run_iteration(benchmark.clone(), pool.clone(), config.clone(), iteration, log_t.clone()));
+      log::info!("{} children = map run_iteration {} done in {:.6}", FN_LOG,config.iterations, log_t.elapsed().as_secs_f64());
+      //real quick up to here <8mSec
       let buffered = stream::iter(children).buffer_unordered(config.concurrency as usize);
 
       let begin = Instant::now();

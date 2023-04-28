@@ -23,7 +23,7 @@ use crate::actions::{Report, Runnable};
 
 static USER_AGENT: &str = "drill";
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 #[allow(dead_code)]
 pub struct Request {
   name: String,
@@ -101,6 +101,7 @@ impl Request {
   }
 
   async fn send_request(&self, context: &mut Context, pool: &Pool, config: &Config) -> (Option<Response>, f64) {
+    let time_01 = Instant::now();
     let mut uninterpolator = None;
 
     // Resolve the name
@@ -154,7 +155,9 @@ impl Request {
     // Resolve the body
     let (client, request) = {
       let mut pool2 = pool.lock().unwrap();
-      let client = pool2.entry(domain).or_insert_with(|| ClientBuilder::default().danger_accept_invalid_certs(config.no_check_certificate).build().unwrap());
+    println!("PES time_01 {:.6}",time_01.elapsed().as_secs_f64());
+      let five_seconds = Duration::new(2, 0);
+      let client = pool2.entry(domain).or_insert_with(|| ClientBuilder::default().timeout(five_seconds).danger_accept_invalid_certs(config.no_check_certificate).build().unwrap());
 
       let request = if let Some(body) = self.body.as_ref() {
         interpolated_body = uninterpolator.get_or_insert(interpolator::Interpolator::new(context)).resolve(body, !config.relaxed_interpolations);
@@ -198,7 +201,7 @@ impl Request {
     match response_result {
       Err(e) => {
         if !config.quiet || config.verbose {
-          println!("Error connecting '{}': {:?}", interpolated_base_url.as_str(), e);
+          println!("Error connecting in {:.1}s '{}': {:?}", duration_ms / 1_000.0, interpolated_base_url.as_str(), e);
         }
         (None, duration_ms)
       }

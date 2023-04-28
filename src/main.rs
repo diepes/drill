@@ -16,8 +16,12 @@ use hdrhistogram::Histogram;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::process;
+// use log::{debug, error, log_enabled, info, Level};
+use log;
+use std::io::Write;
 
 fn main() {
+  setup_log();
   let matches = app_args();
   let benchmark_file = matches.value_of("benchmark").unwrap();
   let report_path_option = matches.value_of("report");
@@ -59,6 +63,27 @@ fn main() {
   compare_benchmark(&list_reports, compare_path_option, threshold_option);
 
   process::exit(0)
+}
+
+fn setup_log() {
+  //env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+  let target = Box::new(std::fs::File::create("/tmp/debug.txt").expect("Can't create file"));
+  env_logger::Builder::new()
+      .format(|buf, record| {
+          writeln!(
+              buf,
+              "{}:{} {} [{}] - {}",
+              record.file().unwrap_or("unknown"),
+              record.line().unwrap_or(0),
+              chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+              record.level(),
+              record.args()
+          )
+      })
+      .target(env_logger::Target::Pipe(target))
+      .filter(None, log::LevelFilter::Info)
+      .init();
+  log::info!("Logging started");
 }
 
 fn app_args<'a>() -> clap::ArgMatches<'a> {
