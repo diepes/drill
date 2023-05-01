@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+//use std::num;
 use std::sync::{Arc, Mutex};
+//use std::thread::yield_now;
 use std::time::{Duration, Instant};
 
 use futures::stream::{self, StreamExt};
@@ -29,6 +31,9 @@ pub struct BenchmarkResult {
 }
 
 async fn run_iteration(benchmark: Arc<Benchmark>, pool: Pool, config: Arc<Config>, iteration: i64) -> Vec<Report> {
+  //println!("run_iteration: {} START.", iteration);
+  //tokio::task::yield_now().await;
+  //tokio::time::sleep(Duration::new(1, 0)).await;
   if config.rampup > 0 {
     let delay = config.rampup / config.iterations;
     sleep(Duration::new((delay * iteration) as u64, 0)).await;
@@ -40,8 +45,11 @@ async fn run_iteration(benchmark: Arc<Benchmark>, pool: Pool, config: Arc<Config
   context.insert("iteration".to_string(), json!(iteration.to_string()));
   context.insert("base".to_string(), json!(config.base.to_string()));
 
-  for item in benchmark.iter() {
+  for (_step,item) in benchmark.iter().enumerate() {
+    //println!("run_iteration: {} in step_{}", iteration,step);
+    //tokio::task::yield_now().await;
     item.execute(&mut context, &mut reports, &pool, &config).await;
+    //println!("run_iteration: {} out step_{}", iteration,step);
   }
 
   reports
@@ -70,6 +78,7 @@ pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_i
   println!();
 
   let threads = std::cmp::min(num_cpus::get(), config.concurrency as usize);
+  println!("CPU's threads={} cuncurrency={} num_cpus={} phy={}",threads, config.concurrency, num_cpus::get(), num_cpus::get_physical());
   let rt = runtime::Builder::new_multi_thread().enable_all().worker_threads(threads).build().unwrap();
 
   rt.block_on(async {
@@ -96,12 +105,17 @@ pub fn execute(benchmark_path: &str, report_path_option: Option<&str>, relaxed_i
         duration: 0.0,
       }
     } else {
+      //println!(" let children iterations run_iteration ....");
       let children = (0..config.iterations).map(|iteration| run_iteration(benchmark.clone(), pool.clone(), config.clone(), iteration));
 
+      //println!(" let children done.");
       let buffered = stream::iter(children).buffer_unordered(config.concurrency as usize);
+      //println!(" let bufferd stream::iter(children) done.");
 
       let begin = Instant::now();
+      //println!(" let reports ...");
       let reports: Vec<Vec<Report>> = buffered.collect::<Vec<_>>().await;
+      //println!(" let reports done.");
       let duration = begin.elapsed().as_secs_f64();
 
       BenchmarkResult {

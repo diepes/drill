@@ -31,7 +31,14 @@ hdrhistogram = "7.4.0"
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "0.9.66"
 
+[dev-dependencies]
+criterion = {version = "0.4.0", feature = ["html_reports"]}
+
 [features]
 # Force openssl-sys to statically link in the openssl library. Necessary when
 # cross compiling to x86_64-unknown-linux-musl.
 vendored = ["openssl-sys/vendored"]
+
+[[bench]]
+name = "drill_speed"
+harness = false

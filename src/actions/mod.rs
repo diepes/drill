@@ -60,6 +60,6 @@ pub fn extract<'a>(item: &'a Yaml, attr: &'a str) -> String {
   } else if item[attr].as_hash().is_some() {
     panic!("`{}` is required needs to be a string. Try adding quotes", attr);
   } else {
-    panic!("Unknown node `{}` => {:?}", attr, item[attr]);
+    panic!("Unknown node `{}` in => {:?}", attr, item);
   }
 }

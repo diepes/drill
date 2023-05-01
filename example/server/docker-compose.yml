@@ -11,4 +11,4 @@ services:
       #  buildno: 1
     environment:
         OUTPUT: 0
-        DELAY_MS: 100
+        DELAY_MS: 0

@@ -1,0 +1,23 @@
+# Example of a test plan with 100 iterations and ~25 requests each.
+# A plan with 2500 requests in total at 5 iterations at the same time,
+# and a rampup of 2 seconds.
+
+---
+base: 'http://localhost:9000'
+iterations: 100
+concurrency: 100
+#rampup: 2
+
+plan:
+  #- name: Fetch vigor
+  #  request:
+  #    url: https://wiki.vigor.nz/
+
+  - name: Exec external commands
+    delay:
+      seconds: 0.01
+
+  - name: Assign values
+    assign:
+      key: bar
+      value: "2"

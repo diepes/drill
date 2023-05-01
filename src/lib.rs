@@ -1,11 +1,11 @@
 mod actions;
-mod benchmark;
+pub mod benchmark;
 mod checker;
 mod config;
 mod expandable;
 mod interpolator;
 mod reader;
-mod tags;
+pub mod tags;
 mod writer;
 
 use crate::actions::Report;
